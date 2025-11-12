@@ -1,16 +1,18 @@
 import streamlit as st
 import json
-import time
 from datetime import datetime
 import uuid
 
 st.set_page_config(page_title="Unified Event Analytics Engine", layout="wide")
 
 # ------------------------------
-# In-Memory Database Simulation
+# Persistent In-Memory Storage
 # ------------------------------
-apps_db = {}
-events_db = []
+if "apps_db" not in st.session_state:
+    st.session_state.apps_db = {"DemoApp": "demo-api-key-001"}  # default demo app
+
+if "events_db" not in st.session_state:
+    st.session_state.events_db = []
 
 # ------------------------------
 # Helper Functions
@@ -19,47 +21,58 @@ def generate_api_key():
     return str(uuid.uuid4())
 
 def validate_api_key(api_key):
-    return api_key in apps_db.values()
+    return api_key in st.session_state.apps_db.values()
 
 # ------------------------------
-# UI - API Key Management
+# Sidebar - App Management
 # ------------------------------
-st.title("🔑 Unified Event Analytics Engine (Demo)")
-st.subheader("Manage API Keys & Collect Event Data")
-
 st.sidebar.header("🔐 API Key Management")
 app_name = st.sidebar.text_input("Enter App Name")
+
 if st.sidebar.button("Register App"):
     if app_name:
         api_key = generate_api_key()
-        apps_db[app_name] = api_key
+        st.session_state.apps_db[app_name] = api_key
         st.sidebar.success(f"API Key for '{app_name}': {api_key}")
     else:
         st.sidebar.error("Please enter a valid App Name.")
 
 st.sidebar.write("### Registered Apps")
-if apps_db:
-    for k, v in apps_db.items():
-        st.sidebar.write(f"**{k}** → `{v}`")
-else:
-    st.sidebar.info("No registered apps yet.")
+for k, v in st.session_state.apps_db.items():
+    st.sidebar.write(f"**{k}** → `{v}`")
 
 # ------------------------------
-# Event Collection Section
+# Event Submission
 # ------------------------------
-st.header("📥 Collect Analytics Events")
+st.title("🔑 Unified Event Analytics Engine (Demo)")
+st.subheader("Collect and Analyze Event Data")
 
-api_key_input = st.text_input("Enter API Key:")
-event_name = st.text_input("Event Name:")
-url = st.text_input("URL:")
-referrer = st.text_input("Referrer:")
-device = st.selectbox("Device Type", ["mobile", "desktop", "tablet"])
-ip_address = st.text_input("IP Address (Optional):")
-browser = st.text_input("Browser:")
-os_name = st.text_input("Operating System:")
-screen_size = st.text_input("Screen Size:")
+with st.expander("📌 Example Input"):
+    st.json({
+        "apiKey": "demo-api-key-001",
+        "event": "button_click",
+        "url": "https://example.com/home",
+        "referrer": "https://google.com",
+        "device": "desktop",
+        "ipAddress": "192.168.1.1",
+        "metadata": {
+            "browser": "Chrome",
+            "os": "Windows",
+            "screenSize": "1366x768"
+        }
+    })
 
-if st.button("Submit Event"):
+api_key_input = st.text_input("Enter API Key:", value="demo-api-key-001")
+event_name = st.text_input("Event Name:", value="button_click")
+url = st.text_input("URL:", value="https://example.com/home")
+referrer = st.text_input("Referrer:", value="https://google.com")
+device = st.selectbox("Device Type", ["desktop", "mobile", "tablet"])
+ip_address = st.text_input("IP Address:", value="192.168.1.1")
+browser = st.text_input("Browser:", value="Chrome")
+os_name = st.text_input("Operating System:", value="Windows")
+screen_size = st.text_input("Screen Size:", value="1366x768")
+
+if st.button("🚀 Submit Event"):
     if validate_api_key(api_key_input):
         event_data = {
             "event": event_name,
@@ -75,38 +88,37 @@ if st.button("Submit Event"):
             },
             "apiKey": api_key_input
         }
-        events_db.append(event_data)
-        st.success(f"Event '{event_name}' recorded successfully.")
+        st.session_state.events_db.append(event_data)
+        st.success(f"✅ Event '{event_name}' recorded successfully.")
     else:
-        st.error("Invalid API Key!")
+        st.error("❌ Invalid API Key! Please check or register a new one.")
 
 # ------------------------------
-# Analytics Section
+# Analytics Dashboard
 # ------------------------------
 st.header("📊 Analytics Dashboard")
 
-if st.button("Generate Summary"):
-    if events_db:
-        total_events = len(events_db)
-        unique_events = len(set([e["event"] for e in events_db]))
-        mobile = sum(1 for e in events_db if e["device"] == "mobile")
-        desktop = sum(1 for e in events_db if e["device"] == "desktop")
-        tablet = sum(1 for e in events_db if e["device"] == "tablet")
+if st.button("📈 Generate Summary"):
+    if st.session_state.events_db:
+        total_events = len(st.session_state.events_db)
+        unique_events = len(set(e["event"] for e in st.session_state.events_db))
+        device_counts = {
+            "desktop": sum(1 for e in st.session_state.events_db if e["device"] == "desktop"),
+            "mobile": sum(1 for e in st.session_state.events_db if e["device"] == "mobile"),
+            "tablet": sum(1 for e in st.session_state.events_db if e["device"] == "tablet"),
+        }
 
         st.write(f"**Total Events:** {total_events}")
         st.write(f"**Unique Event Types:** {unique_events}")
-        st.json({
-            "deviceData": {
-                "mobile": mobile,
-                "desktop": desktop,
-                "tablet": tablet
-            }
-        })
+        st.json({"deviceData": device_counts})
     else:
-        st.warning("No events available.")
+        st.warning("No events to analyze yet!")
 
 # ------------------------------
-# Data Viewer
+# View Collected Events
 # ------------------------------
 st.header("📂 View Collected Events")
-st.dataframe(events_db)
+if st.session_state.events_db:
+    st.dataframe(st.session_state.events_db)
+else:
+    st.info("No events submitted yet.")
